@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chunking Comparison: semchunk vs LangChain</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #1a1a2e; color: #e0e0e0; padding: 2rem; }
+    h1 { text-align: center; margin-bottom: 0.5rem; color: #fff; font-size: 1.8rem; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 1.5rem; font-size: 0.95rem; }
+
+    /* --- Overall winner banner --- */
+    .overall-banner { text-align: center; font-size: 1.3rem; font-weight: 700;
+                       padding: 1rem 1.5rem; border-radius: 10px; margin-bottom: 1rem; }
+    .overall-sc  { background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
+                    border: 2px solid #4caf50; color: #e8f5e9; }
+    .overall-lc  { background: linear-gradient(135deg, #e65100 0%, #ef6c00 100%);
+                    border: 2px solid #ff9800; color: #fff3e0; }
+    .overall-tie { background: linear-gradient(135deg, #37474f 0%, #546e7a 100%);
+                    border: 2px solid #78909c; color: #eceff1; }
+    .ow-name { font-size: 1.5rem; }
+
+    /* --- Scoreboard --- */
+    .scoreboard { text-align: center; margin-bottom: 2rem; }
+    .sb-item { display: inline-block; padding: 0.35rem 1rem; border-radius: 6px;
+                font-weight: 600; font-size: 0.9rem; margin: 0 0.4rem; }
+    .sb-sc  { background: #1b5e20; color: #a5d6a7; }
+    .sb-lc  { background: #e65100; color: #ffcc80; }
+    .sb-tie { background: #37474f; color: #b0bec5; }
+
+    /* --- Per-document sections --- */
+    .doc-section { margin-bottom: 3rem; border: 1px solid #333; border-radius: 8px;
+                    padding: 1.5rem; background: #16213e; }
+    .doc-header { display: flex; justify-content: space-between; align-items: center;
+                   margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; }
+    .doc-header h2 { color: #e0e0e0; font-size: 1.3rem; margin: 0; }
+    .doc-tokens { color: #888; font-weight: normal; font-size: 0.9rem; }
+
+    /* --- Per-document winner banner --- */
+    .banner { padding: 0.3rem 1rem; border-radius: 6px; font-weight: 700;
+               font-size: 0.85rem; white-space: nowrap; }
+    .winner-sc  { background: #1b5e20; color: #a5d6a7; border: 1px solid #4caf50; }
+    .winner-lc  { background: #e65100; color: #ffcc80; border: 1px solid #ff9800; }
+    .winner-tie { background: #37474f; color: #b0bec5; border: 1px solid #78909c; }
+
+    .reasons { font-size: 0.8rem; color: #999; margin-bottom: 1rem; padding-left: 0.2rem; }
+
+    /* --- Columns --- */
+    .columns { display: flex; gap: 1.5rem; }
+    .col { flex: 1; min-width: 0; border: 2px solid transparent; border-radius: 8px;
+            padding: 0.75rem; }
+    .col-winner { border-color: #4caf50; background: rgba(76,175,80,0.05); }
+    .col h3 { color: #ccc; margin-bottom: 0.5rem; font-size: 1rem;
+               padding-bottom: 0.3rem; border-bottom: 1px solid #333; }
+    .col-winner h3 { color: #a5d6a7; border-bottom-color: #4caf50; }
+
+    .metrics { font-size: 0.8rem; color: #aaa; margin-bottom: 0.5rem; padding: 0.4rem 0; }
+    .metrics b { color: #e0e0e0; }
+    .text-display { white-space: pre-wrap; word-wrap: break-word; font-family: 'SF Mono',
+                     'Fira Code', 'Consolas', monospace; font-size: 0.78rem; line-height: 1.5;
+                     background: #0f0f23; padding: 1rem; border-radius: 6px;
+                     max-height: 600px; overflow-y: auto; border: 1px solid #2a2a4a; }
+    .chunk { position: relative; border-radius: 3px; color: #1a1a1a; }
+    .chunk-label { position: relative; display: inline-block; font-size: 0.65rem;
+                    font-weight: 700; color: #fff; background: #e53935; padding: 1px 5px;
+                    border-radius: 3px; margin-right: 2px; vertical-align: top;
+                    line-height: 1.4; }
+    .gap { color: #ef5350; background: rgba(239,83,80,0.15); border-radius: 2px; }
+
+    /* --- Legend --- */
+    .legend { text-align: center; margin-bottom: 2rem; font-size: 0.85rem; color: #999; }
+    .legend span { display: inline-block; margin: 0 1rem; }
+    .legend .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+                       vertical-align: middle; margin-right: 4px; }
+</style>
+</head>
+<body>
+<h1>Chunking Comparison: semchunk vs LangChain</h1>
+<p class="subtitle">chunk_size = 150 tokens &nbsp;|&nbsp; tokenizer = cl100k_base &nbsp;|&nbsp; 9 documents</p>
+
+<div class="overall-banner overall-sc">🏆 Overall winner: <span class="ow-name">semchunk</span> &mdash; won 8 of 9 documents</div>
+<div class="scoreboard"><span class="sb-item sb-sc">semchunk 8</span><span class="sb-item sb-lc">LangChain 0</span><span class="sb-item sb-tie">Ties 1</span></div>
+
+<div class="legend">
+    <span><span class="swatch" style="background:#e3f2fd;"></span> Each color = one chunk</span>
+    <span><span class="swatch" style="background:rgba(239,83,80,0.15);border:1px solid #ef5350;"></span> Red = text between chunks (trimmed whitespace)</span>
+    <span>Red labels show chunk index and token count</span>
+</div>
+
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>structured_markdown <span class="doc-tokens">(317 tokens)</span></h2>
+                <div class="banner winner-tie">🤝 Tie</div>
+            </div>
+            <div class="reasons">identical output</div>
+            <div class="columns">
+                <div class="col">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>3</b> chunks &nbsp;|&nbsp; avg <b>105.7</b> tok &nbsp;|&nbsp; util <b>70.4%</b> &nbsp;|&nbsp; sentence ends <b>66.7%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (117 tok)</span># Database Indexing Guide
+
+## Introduction
+
+Database indexing is one of the most important concepts in database management. An index is a data structure that improves the speed of data retrieval operations on a database table at the cost of additional writes and storage space. Without indexes, the database must scan every row in a table to find the relevant data.
+
+## How B-Tree Indexes Work
+
+The most common type of index is the B-tree (balanced tree) index. A B-tree maintains sorted data and allows searches, sequential access, insertions, and deletions in logarithmic time.</span><span class="gap">
+
+</span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (127 tok)</span>When you create an index on a column, the database builds a B-tree where each internal node contains keys and pointers to child nodes. Leaf nodes contain the actual index entries pointing to table rows. The tree stays balanced through split and merge operations.
+
+## Composite Indexes
+
+A composite index includes multiple columns. The order of columns matters significantly due to the leftmost prefix rule.
+
+```sql
+CREATE INDEX idx_name_age ON users(last_name, first_name, age);
+
+-- Can efficiently support:
+SELECT * FROM users WHERE last_name = &#x27;Smith&#x27;;
+SELECT * FROM users WHERE last_name = &#x27;Smith&#x27; AND first_name = &#x27;John&#x27;;</span><span class="gap">
+
+</span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (73 tok)</span>-- Cannot efficiently support (skips leftmost column):
+SELECT * FROM users WHERE first_name = &#x27;John&#x27; AND age &gt; 25;
+```
+
+## Trade-offs
+
+While indexes speed up reads, they slow down writes. Every INSERT, UPDATE, or DELETE must also update all relevant indexes. For write-heavy workloads, too many indexes can degrade performance significantly.</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>3</b> chunks &nbsp;|&nbsp; avg <b>105.7</b> tok &nbsp;|&nbsp; util <b>70.4%</b> &nbsp;|&nbsp; sentence ends <b>66.7%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (117 tok)</span># Database Indexing Guide
+
+## Introduction
+
+Database indexing is one of the most important concepts in database management. An index is a data structure that improves the speed of data retrieval operations on a database table at the cost of additional writes and storage space. Without indexes, the database must scan every row in a table to find the relevant data.
+
+## How B-Tree Indexes Work
+
+The most common type of index is the B-tree (balanced tree) index. A B-tree maintains sorted data and allows searches, sequential access, insertions, and deletions in logarithmic time.</span><span class="gap">
+
+</span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (127 tok)</span>When you create an index on a column, the database builds a B-tree where each internal node contains keys and pointers to child nodes. Leaf nodes contain the actual index entries pointing to table rows. The tree stays balanced through split and merge operations.
+
+## Composite Indexes
+
+A composite index includes multiple columns. The order of columns matters significantly due to the leftmost prefix rule.
+
+```sql
+CREATE INDEX idx_name_age ON users(last_name, first_name, age);
+
+-- Can efficiently support:
+SELECT * FROM users WHERE last_name = &#x27;Smith&#x27;;
+SELECT * FROM users WHERE last_name = &#x27;Smith&#x27; AND first_name = &#x27;John&#x27;;</span><span class="gap">
+
+</span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (73 tok)</span>-- Cannot efficiently support (skips leftmost column):
+SELECT * FROM users WHERE first_name = &#x27;John&#x27; AND age &gt; 25;
+```
+
+## Trade-offs
+
+While indexes speed up reads, they slow down writes. Every INSERT, UPDATE, or DELETE must also update all relevant indexes. For write-heavy workloads, too many indexes can degrade performance significantly.</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>dense_prose_sentences <span class="doc-tokens">(288 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">better sentence alignment (100.0% vs 50.0%) &bull; fewer mid-sentence starts (0 vs 1) &bull; better utilization (96.0% vs 64.0%)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>3</b> chunks &nbsp;|&nbsp; avg <b>96.0</b> tok &nbsp;|&nbsp; util <b>64.0%</b> &nbsp;|&nbsp; sentence ends <b>100.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (124 tok)</span>The evolution of machine learning has been nothing short of remarkable. Starting from simple perceptrons in the 1950s, the field has grown to encompass deep neural networks with billions of parameters. Transformer architectures have revolutionized natural language processing. Diffusion models can generate photorealistic images from text descriptions. The key breakthrough came in 2017 when Vaswani et al. published their landmark paper introducing the transformer architecture that replaced recurrent neural networks with self-attention mechanisms. This allowed for much greater parallelization during training, enabling models to be trained on vastly larger datasets than was previously feasible. The implications were profound.</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (126 tok)</span>Within just a few years, models like BERT and GPT demonstrated capabilities that many researchers had not expected to see for decades, including few-shot learning and chain-of-thought reasoning. Meanwhile, in computer vision, the introduction of Vision Transformers showed that the same architecture could achieve state-of-the-art results on image classification tasks. This convergence of architectures across modalities has led to the development of multimodal models that can process text, images, audio, and video within a single unified framework. The scaling laws discovered by Kaplan et al. revealed a surprisingly predictable relationship between model size, dataset size, compute budget, and model performance.</span><span class="gap"> </span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (38 tok)</span>However, this approach faces fundamental challenges including enormous energy consumption, the difficulty of curating high-quality training data at scale, and the challenge of aligning model behavior with human values and intentions.</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>144.0</b> tok &nbsp;|&nbsp; util <b>96.0%</b> &nbsp;|&nbsp; sentence ends <b>50.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (150 tok)</span>The evolution of machine learning has been nothing short of remarkable. Starting from simple perceptrons in the 1950s, the field has grown to encompass deep neural networks with billions of parameters. Transformer architectures have revolutionized natural language processing. Diffusion models can generate photorealistic images from text descriptions. The key breakthrough came in 2017 when Vaswani et al. published their landmark paper introducing the transformer architecture that replaced recurrent neural networks with self-attention mechanisms. This allowed for much greater parallelization during training, enabling models to be trained on vastly larger datasets than was previously feasible. The implications were profound. Within just a few years, models like BERT and GPT demonstrated capabilities that many researchers had not expected to see for decades,</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (138 tok)</span>including few-shot learning and chain-of-thought reasoning. Meanwhile, in computer vision, the introduction of Vision Transformers showed that the same architecture could achieve state-of-the-art results on image classification tasks. This convergence of architectures across modalities has led to the development of multimodal models that can process text, images, audio, and video within a single unified framework. The scaling laws discovered by Kaplan et al. revealed a surprisingly predictable relationship between model size, dataset size, compute budget, and model performance. However, this approach faces fundamental challenges including enormous energy consumption, the difficulty of curating high-quality training data at scale, and the challenge of aligning model behavior with human values and intentions.</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>dense_prose_semicolons <span class="doc-tokens">(184 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">fewer tiny chunks (0 vs 1)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>92.0</b> tok &nbsp;|&nbsp; util <b>61.3%</b> &nbsp;|&nbsp; sentence ends <b>50.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (140 tok)</span>The server infrastructure required a complete overhaul; the legacy systems were running on end-of-life hardware that could no longer receive security patches; the network topology had grown organically over fifteen years without any coherent architecture; the monitoring stack was a patchwork of incompatible tools that generated thousands of false alerts daily; the deployment process required manual intervention at seven different stages and took an average of four hours to complete; the disaster recovery plan had never been tested and relied on assumptions about data center availability that were no longer valid; the team had accumulated significant technical debt by repeatedly choosing quick fixes over proper solutions; the documentation was scattered across wikis, shared drives, and individual engineers&#x27; notebooks with no single source of truth;</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (44 tok)</span>the on-call rotation was burning out senior engineers who were the only ones with enough institutional knowledge to troubleshoot production issues; and the budget for infrastructure improvements had been cut three years in a row in favor of feature development.</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>92.0</b> tok &nbsp;|&nbsp; util <b>61.3%</b> &nbsp;|&nbsp; sentence ends <b>50.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (150 tok)</span>The server infrastructure required a complete overhaul; the legacy systems were running on end-of-life hardware that could no longer receive security patches; the network topology had grown organically over fifteen years without any coherent architecture; the monitoring stack was a patchwork of incompatible tools that generated thousands of false alerts daily; the deployment process required manual intervention at seven different stages and took an average of four hours to complete; the disaster recovery plan had never been tested and relied on assumptions about data center availability that were no longer valid; the team had accumulated significant technical debt by repeatedly choosing quick fixes over proper solutions; the documentation was scattered across wikis, shared drives, and individual engineers&#x27; notebooks with no single source of truth; the on-call rotation was burning out senior engineers who</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (34 tok)</span>were the only ones with enough institutional knowledge to troubleshoot production issues; and the budget for infrastructure improvements had been cut three years in a row in favor of feature development.</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>literary_emdash <span class="doc-tokens">(249 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">better sentence alignment (100.0% vs 50.0%) &bull; fewer mid-sentence starts (0 vs 1)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>124.5</b> tok &nbsp;|&nbsp; util <b>83.0%</b> &nbsp;|&nbsp; sentence ends <b>100.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (147 tok)</span>The old house at the end of Maple Street had been abandoned for years — or so everyone believed — but on certain autumn evenings, when the fog rolled in from the harbor and the streetlights cast their amber glow through the bare branches of the elm trees, you could see a faint light flickering in the upstairs window… just for a moment… then gone. Mrs. Henderson — who had lived next door for forty-three years and who remembered when the Whitfield family still occupied the place — swore she heard piano music drifting through the walls on Tuesday nights, always Chopin, always the same nocturne. The neighborhood children — braver than their parents, as children often are — had their own theories about what lurked inside.</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (102 tok)</span>None of them had ever actually entered the house… not because they were afraid, they would insist, but because the front door was always locked and the windows were boarded shut. The real estate agent — a cheerful woman named Patricia who had been trying to sell the property for the better part of a decade — had a more mundane explanation. She would say the light was probably a reflection from passing cars, the music was likely from Mrs. Henderson&#x27;s own radio, and the house was simply… unsellable.</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>124.5</b> tok &nbsp;|&nbsp; util <b>83.0%</b> &nbsp;|&nbsp; sentence ends <b>50.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (150 tok)</span>The old house at the end of Maple Street had been abandoned for years — or so everyone believed — but on certain autumn evenings, when the fog rolled in from the harbor and the streetlights cast their amber glow through the bare branches of the elm trees, you could see a faint light flickering in the upstairs window… just for a moment… then gone. Mrs. Henderson — who had lived next door for forty-three years and who remembered when the Whitfield family still occupied the place — swore she heard piano music drifting through the walls on Tuesday nights, always Chopin, always the same nocturne. The neighborhood children — braver than their parents, as children often are — had their own theories about what lurked inside. None of them</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (99 tok)</span>had ever actually entered the house… not because they were afraid, they would insist, but because the front door was always locked and the windows were boarded shut. The real estate agent — a cheerful woman named Patricia who had been trying to sell the property for the better part of a decade — had a more mundane explanation. She would say the light was probably a reflection from passing cars, the music was likely from Mrs. Henderson&#x27;s own radio, and the house was simply… unsellable.</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>csv_no_spaces <span class="doc-tokens">(332 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">better sentence alignment (66.7% vs 0.0%) &bull; fewer mid-sentence starts (1 vs 2) &bull; better utilization (74.0% vs 36.9%) &bull; fewer tiny chunks (0 vs 1)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>3</b> chunks &nbsp;|&nbsp; avg <b>111.0</b> tok &nbsp;|&nbsp; util <b>74.0%</b> &nbsp;|&nbsp; sentence ends <b>66.7%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (147 tok)</span>id,name,dept,salary,start_date,office,manager_id,status;1001,James.Morrison,Engineering,145000,2019-03-15,Seattle-HQ-Floor12,1000,active;1002,Sarah.Chen,Engineering,178000,2017-08-22,Seattle-HQ-Floor12,1000,active;1003,Michael.OBrien,Product,155000,2020-01-10,Seattle-HQ-Floor8,1050,active;1004,Priya.Patel,Engineering,125000,2021-06-01,Austin-Office-Floor3,1001,active;1005,David.</span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (128 tok)</span>Kim,Design,140000,2018-11-30,Seattle-HQ-Floor8,1050,active;1006,Maria.Garcia,Engineering,135000,2020-09-14,Seattle-HQ-Floor12,1002,active;1007,Robert.Johnson,DataScience,160000,2019-07-08,NYC-Office-Floor5,1060,active;1008,Lisa.Wang,Engineering,195000,2016-02-28,Seattle-HQ-Floor12,1000,active;1009,Ahmed.</span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (58 tok)</span>Hassan,Security,142000,2021-03-20,Seattle-HQ-Floor15,1070,active;1010,Jennifer.Taylor,Engineering,110000,2023-01-09,Austin-Office-Floor3,1001,active</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>6</b> chunks &nbsp;|&nbsp; avg <b>55.3</b> tok &nbsp;|&nbsp; util <b>36.9%</b> &nbsp;|&nbsp; sentence ends <b>0.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (52 tok)</span>id,name,dept,salary,start_date,office,manager_id,status;1001,James.Morrison,Engineering,145000,2019-03-15,Seattle-HQ-Floor12,1000,active;1002,Sarah.Ch</span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (63 tok)</span>en,Engineering,178000,2017-08-22,Seattle-HQ-Floor12,1000,active;1003,Michael.OBrien,Product,155000,2020-01-10,Seattle-HQ-Floor8,1050,active;1004,Priya</span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (62 tok)</span>.Patel,Engineering,125000,2021-06-01,Austin-Office-Floor3,1001,active;1005,David.Kim,Design,140000,2018-11-30,Seattle-HQ-Floor8,1050,active;1006,Maria</span><span class="chunk" style="background:#fce4ec;"><span class="chunk-label">chunk 3 (62 tok)</span>.Garcia,Engineering,135000,2020-09-14,Seattle-HQ-Floor12,1002,active;1007,Robert.Johnson,DataScience,160000,2019-07-08,NYC-Office-Floor5,1060,active;1</span><span class="chunk" style="background:#f3e5f5;"><span class="chunk-label">chunk 4 (62 tok)</span>008,Lisa.Wang,Engineering,195000,2016-02-28,Seattle-HQ-Floor12,1000,active;1009,Ahmed.Hassan,Security,142000,2021-03-20,Seattle-HQ-Floor15,1070,active</span><span class="chunk" style="background:#e0f7fa;"><span class="chunk-label">chunk 5 (31 tok)</span>;1010,Jennifer.Taylor,Engineering,110000,2023-01-09,Austin-Office-Floor3,1001,active</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>paths_no_spaces <span class="doc-tokens">(211 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">better sentence alignment (50.0% vs 0.0%) &bull; fewer mid-sentence starts (2 vs 3) &bull; better utilization (70.7% vs 28.8%) &bull; fewer tiny chunks (0 vs 1)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>106.0</b> tok &nbsp;|&nbsp; util <b>70.7%</b> &nbsp;|&nbsp; sentence ends <b>50.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (115 tok)</span>s3://prod-artifacts-us-east-1/builds/api-gateway/2025/01/15/build-7842/api-gateway-2.4.1-SNAPSHOT.jar-&gt;123456789012.dkr.ecr.us-east-1.amazonaws.com/platform/api-gateway:2.4.1-build7842-sha-a1b2c3d4-&gt;arn:aws:eks:us-west-2:123456789012:cluster/staging-platform-cluster/namespaces/api-gateway-staging-&gt;https://grafana.internal.example.</span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (97 tok)</span>com/d/api-gateway-staging/api-gateway-overview?orgId=1&amp;from=now-6h&amp;to=now-&gt;arn:aws:secretsmanager:us-east-1:123456789012:secret:platform/api-gateway/production/database-credentials-AbCdEf-&gt;arn:aws:acm:us-east-1:123456789012:certificate/12345678-abcd-efgh-ijkl-123456789012</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>5</b> chunks &nbsp;|&nbsp; avg <b>43.2</b> tok &nbsp;|&nbsp; util <b>28.8%</b> &nbsp;|&nbsp; sentence ends <b>0.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (55 tok)</span>s3://prod-artifacts-us-east-1/builds/api-gateway/2025/01/15/build-7842/api-gateway-2.4.1-SNAPSHOT.jar-&gt;123456789012.dkr.ecr.us-east-1.amazonaws.com/pl</span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (55 tok)</span>atform/api-gateway:2.4.1-build7842-sha-a1b2c3d4-&gt;arn:aws:eks:us-west-2:123456789012:cluster/staging-platform-cluster/namespaces/api-gateway-staging-&gt;h</span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (53 tok)</span>ttps://grafana.internal.example.com/d/api-gateway-staging/api-gateway-overview?orgId=1&amp;from=now-6h&amp;to=now-&gt;arn:aws:secretsmanager:us-east-1:1234567890</span><span class="chunk" style="background:#fce4ec;"><span class="chunk-label">chunk 3 (51 tok)</span>12:secret:platform/api-gateway/production/database-credentials-AbCdEf-&gt;arn:aws:acm:us-east-1:123456789012:certificate/12345678-abcd-efgh-ijkl-12345678</span><span class="chunk" style="background:#f3e5f5;"><span class="chunk-label">chunk 4 (2 tok)</span>9012</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>server_logs_inline <span class="doc-tokens">(381 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">better sentence alignment (100.0% vs 66.7%) &bull; fewer mid-sentence starts (0 vs 1)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>3</b> chunks &nbsp;|&nbsp; avg <b>126.3</b> tok &nbsp;|&nbsp; util <b>84.2%</b> &nbsp;|&nbsp; sentence ends <b>100.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (126 tok)</span>2025-01-15T09:00:01.234Z INFO [main] ApplicationBootstrap: Starting application server v2.4.1 in production mode with 4 worker threads and connection pool size 20. 2025-01-15T09:00:02.789Z INFO [main] DatabaseConnector: Primary database connection established successfully in 1333ms with pool size 20/20 available. 2025-01-15T09:00:03.234Z INFO [main] CacheManager: Redis connection established successfully with cluster mode enabled and 3 master nodes detected.</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (115 tok)</span>2025-01-15T09:00:03.678Z WARN [main] ConfigValidator: Deprecated configuration key detected in application.yml. 2025-01-15T09:00:03.890Z INFO [main] ApplicationBootstrap: Application server started successfully on 0.0.0.0:8443 in 2656ms. 2025-01-15T09:00:15.123Z INFO [worker-1] RequestHandler: POST /api/v2/users responded 201 Created in 45ms.</span><span class="gap"> </span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (138 tok)</span>2025-01-15T09:00:16.789Z WARN [worker-1] RateLimiter: Client 10.0.2.100 approaching rate limit at 85/100 requests in current window. 2025-01-15T09:00:17.012Z ERROR [worker-3] RequestHandler: GET /api/v2/products/9999 responded 500 Internal Server Error in 234ms. 2025-01-15T09:00:17.234Z ERROR [worker-3] AlertManager: Critical error threshold reached for endpoint /api/v2/products with 5 errors in last 60 seconds.</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>3</b> chunks &nbsp;|&nbsp; avg <b>126.7</b> tok &nbsp;|&nbsp; util <b>84.4%</b> &nbsp;|&nbsp; sentence ends <b>66.7%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (150 tok)</span>2025-01-15T09:00:01.234Z INFO [main] ApplicationBootstrap: Starting application server v2.4.1 in production mode with 4 worker threads and connection pool size 20. 2025-01-15T09:00:02.789Z INFO [main] DatabaseConnector: Primary database connection established successfully in 1333ms with pool size 20/20 available. 2025-01-15T09:00:03.234Z INFO [main] CacheManager: Redis connection established successfully with cluster mode enabled and 3 master nodes detected. 2025-01-15T09:00:03.678Z WARN [main] ConfigValidator: Deprecated</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (140 tok)</span>configuration key detected in application.yml. 2025-01-15T09:00:03.890Z INFO [main] ApplicationBootstrap: Application server started successfully on 0.0.0.0:8443 in 2656ms. 2025-01-15T09:00:15.123Z INFO [worker-1] RequestHandler: POST /api/v2/users responded 201 Created in 45ms. 2025-01-15T09:00:16.789Z WARN [worker-1] RateLimiter: Client 10.0.2.100 approaching rate limit at 85/100 requests in current window.</span><span class="gap"> </span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (90 tok)</span>2025-01-15T09:00:17.012Z ERROR [worker-3] RequestHandler: GET /api/v2/products/9999 responded 500 Internal Server Error in 234ms. 2025-01-15T09:00:17.234Z ERROR [worker-3] AlertManager: Critical error threshold reached for endpoint /api/v2/products with 5 errors in last 60 seconds.</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>dense_checklist <span class="doc-tokens">(227 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">better sentence alignment (100.0% vs 50.0%) &bull; fewer mid-sentence starts (0 vs 1)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>113.5</b> tok &nbsp;|&nbsp; util <b>75.7%</b> &nbsp;|&nbsp; sentence ends <b>100.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (142 tok)</span>System Design Interview Checklist: Requirements Gathering. Ask about functional requirements and what the system should do. Ask about non-functional requirements including latency, throughput, availability, and consistency. Clarify the scale including how many users and how many requests per second. Ask about read vs write ratio. Ask about data retention requirements. Back-of-the-Envelope Estimation. Calculate storage needs based on data model and retention. Estimate bandwidth requirements for peak traffic. Calculate the number of servers needed based on throughput requirements. Consider caching hit ratios and their impact on backend load. Factor in replication overhead for high availability. High-Level Design. Start with a simple client-server architecture. Identify the core entities and their relationships. Design the API endpoints.</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (85 tok)</span>Choose between SQL and NoSQL based on data access patterns. Add a load balancer for horizontal scaling. Introduce caching layer for frequently accessed data. Add a message queue for asynchronous processing. Detailed Design. Design the database schema with proper indexing strategy. Implement consistent hashing for distributed caching. Design the data partitioning strategy. Implement rate limiting to prevent abuse. Design the notification system. Implement circuit breakers for external service calls.</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>113.5</b> tok &nbsp;|&nbsp; util <b>75.7%</b> &nbsp;|&nbsp; sentence ends <b>50.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (150 tok)</span>System Design Interview Checklist: Requirements Gathering. Ask about functional requirements and what the system should do. Ask about non-functional requirements including latency, throughput, availability, and consistency. Clarify the scale including how many users and how many requests per second. Ask about read vs write ratio. Ask about data retention requirements. Back-of-the-Envelope Estimation. Calculate storage needs based on data model and retention. Estimate bandwidth requirements for peak traffic. Calculate the number of servers needed based on throughput requirements. Consider caching hit ratios and their impact on backend load. Factor in replication overhead for high availability. High-Level Design. Start with a simple client-server architecture. Identify the core entities and their relationships. Design the API endpoints. Choose between SQL and NoSQL based on</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (77 tok)</span>data access patterns. Add a load balancer for horizontal scaling. Introduce caching layer for frequently accessed data. Add a message queue for asynchronous processing. Detailed Design. Design the database schema with proper indexing strategy. Implement consistent hashing for distributed caching. Design the data partitioning strategy. Implement rate limiting to prevent abuse. Design the notification system. Implement circuit breakers for external service calls.</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="doc-section">
+            <div class="doc-header">
+                <h2>academic_citations <span class="doc-tokens">(280 tokens)</span></h2>
+                <div class="banner winner-sc">🏆 semchunk wins</div>
+            </div>
+            <div class="reasons">better sentence alignment (100.0% vs 50.0%) &bull; fewer mid-sentence starts (0 vs 1) &bull; better utilization (93.7% vs 62.2%)</div>
+            <div class="columns">
+                <div class="col col-winner">
+                    <h3>semchunk</h3>
+                    <div class="metrics"><b>3</b> chunks &nbsp;|&nbsp; avg <b>93.3</b> tok &nbsp;|&nbsp; util <b>62.2%</b> &nbsp;|&nbsp; sentence ends <b>100.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (106 tok)</span>The relationship between sleep duration and cognitive performance (as measured by the Montreal Cognitive Assessment and the Mini-Mental State Examination) has been extensively studied in older adults (aged 65 and above) across multiple longitudinal cohorts (including the Framingham Heart Study with 2457 participants and mean follow-up of 8.3 years, the Rotterdam Study with 4215 participants and mean follow-up of 11.1 years, and the Whitehall II Study with 5123 participants and mean follow-up of 15.2 years).</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (106 tok)</span>The findings consistently demonstrate a U-shaped association (see Figure 3a for unadjusted and adjusted models) whereby both short sleepers (defined as those reporting fewer than 6 hours of sleep per night by self-report or fewer than 5.5 hours by actigraphy) and long sleepers (defined as those reporting more than 9 hours per night by self-report or more than 8.5 hours by actigraphy) exhibited significantly greater cognitive decline compared to the reference group of 7 to 8 hours per night.</span><span class="gap"> </span><span class="chunk" style="background:#e8f5e9;"><span class="chunk-label">chunk 2 (68 tok)</span>Notably, the effect was more pronounced in carriers of the APOE-epsilon-4 allele (interaction term p equals 0.003 after Bonferroni correction) and in participants with pre-existing mild cognitive impairment, suggesting that these subgroups may be particularly vulnerable to the neurocognitive effects of suboptimal sleep duration.</span></pre>
+                </div>
+                <div class="col">
+                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
+                    <div class="metrics"><b>2</b> chunks &nbsp;|&nbsp; avg <b>140.5</b> tok &nbsp;|&nbsp; util <b>93.7%</b> &nbsp;|&nbsp; sentence ends <b>50.0%</b></div>
+                    <pre class="text-display"><span class="chunk" style="background:#e3f2fd;"><span class="chunk-label">chunk 0 (150 tok)</span>The relationship between sleep duration and cognitive performance (as measured by the Montreal Cognitive Assessment and the Mini-Mental State Examination) has been extensively studied in older adults (aged 65 and above) across multiple longitudinal cohorts (including the Framingham Heart Study with 2457 participants and mean follow-up of 8.3 years, the Rotterdam Study with 4215 participants and mean follow-up of 11.1 years, and the Whitehall II Study with 5123 participants and mean follow-up of 15.2 years). The findings consistently demonstrate a U-shaped association (see Figure 3a for unadjusted and adjusted models) whereby both short sleepers (defined as those reporting fewer than 6 hours of sleep per night by self-report or</span><span class="gap"> </span><span class="chunk" style="background:#fff3e0;"><span class="chunk-label">chunk 1 (131 tok)</span>fewer than 5.5 hours by actigraphy) and long sleepers (defined as those reporting more than 9 hours per night by self-report or more than 8.5 hours by actigraphy) exhibited significantly greater cognitive decline compared to the reference group of 7 to 8 hours per night. Notably, the effect was more pronounced in carriers of the APOE-epsilon-4 allele (interaction term p equals 0.003 after Bonferroni correction) and in participants with pre-existing mild cognitive impairment, suggesting that these subgroups may be particularly vulnerable to the neurocognitive effects of suboptimal sleep duration.</span></pre>
+                </div>
+            </div>
+        </div>
+</body>
+</html>
