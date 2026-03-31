@@ -39,4 +39,4 @@ Both libraries behave identically on well-formatted text with paragraph breaks. 
 - **On prose with spaces**: semchunk splits at the space *after* a sentence-ending punctuation mark; LangChain splits at whichever space is nearest to the token limit, often mid-sentence.
 - **On text with no spaces** (CSV data, URLs, ARNs): semchunk falls back to splitting at punctuation (`;` `,` `/`), keeping records intact; LangChain falls back to character-level splitting, producing mangled fragments.
 
-The trade-off: LangChain packs chunks more efficiently (up to 96% utilization vs semchunk's 64% on some documents), which means fewer embedding API calls at scale.
+The trade-off: on well-structured prose, LangChain can pack chunks more tightly (e.g. 96% vs 64% on one document), producing fewer chunks and fewer embedding API calls. However, on unstructured data without spaces, LangChain's utilization collapses (as low as 28%) due to character-level splitting, while semchunk stays consistent. Overall utilization is nearly identical: semchunk 71.7% vs LangChain 70.0%.
