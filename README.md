@@ -17,9 +17,8 @@ A side-by-side comparison of [semchunk](https://github.com/umarbutler/semchunk) 
 ```bash
 uv sync
 
-# Generate visual HTML report (default)
+# Generate markdown report (default) — saved to reports/comparison_report.md
 uv run compare.py
-open reports/comparison_report.html
 
 # Console output with metrics table
 uv run compare.py --format console
@@ -30,7 +29,7 @@ uv run compare.py --format console
 | File | Purpose |
 |------|---------|
 | `dataset.py` | 9 test documents with comments explaining what each one tests |
-| `compare.py` | Runs the comparison — HTML report by default, `--format console` for terminal output |
+| `compare.py` | Runs the comparison — markdown report by default, `--format console` for terminal output |
 | `pyproject.toml` | Project dependencies, managed with uv |
 
 ## Key finding

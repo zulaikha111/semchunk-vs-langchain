@@ -2,8 +2,8 @@
 Chunking comparison: semchunk vs LangChain RecursiveCharacterTextSplitter.
 
 Usage:
-    uv run compare.py               # generates reports/comparison_report.html (default)
-    uv run compare.py --format html
+    uv run compare.py                  # generates reports/comparison_report.md (default)
+    uv run compare.py --format markdown
     uv run compare.py --format console
 
 Key algorithmic difference:
@@ -19,7 +19,6 @@ Key algorithmic difference:
 """
 
 import argparse
-import html
 import re
 from pathlib import Path
 import tiktoken
@@ -121,11 +120,11 @@ def judge(sc: dict, lc: dict) -> tuple[str, str, list[str]]:
         reasons.append(f'fewer split code blocks ({lc["split_code"]} vs {sc["split_code"]})')
 
     if sc_pts > lc_pts:
-        return "semchunk", "\U0001f3c6", reasons
+        return "semchunk", "🏆", reasons
     elif lc_pts > sc_pts:
-        return "langchain", "\U0001f3c6", reasons
+        return "langchain", "🏆", reasons
     else:
-        return "tie", "\U0001f91d", reasons
+        return "tie", "🤝", reasons
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +156,12 @@ def run_console():
         lc_scores = compute_scores(lc)
 
         metrics_map = [
-            ("num_chunks",      "n"),
-            ("avg_tok",         "avg_tok"),
-            ("utilization_%",   "util"),
-            ("tiny(<25%)",      "tiny"),
-            ("starts_lowercase","starts_lower"),
-            ("sentence_end_%",  "sent_boundary"),
+            ("num_chunks",       "n"),
+            ("avg_tok",          "avg_tok"),
+            ("utilization_%",    "util"),
+            ("tiny(<25%)",       "tiny"),
+            ("starts_lowercase", "starts_lower"),
+            ("sentence_end_%",   "sent_boundary"),
         ]
         rows = []
         for label, key in metrics_map:
@@ -213,74 +212,22 @@ def run_console():
 
 
 # ---------------------------------------------------------------------------
-# HTML output
+# Markdown output
 # ---------------------------------------------------------------------------
 
-COLORS = [
-    "#e3f2fd", "#fff3e0", "#e8f5e9", "#fce4ec", "#f3e5f5",
-    "#e0f7fa", "#fff8e1", "#e8eaf6", "#fbe9e7", "#f1f8e9",
-    "#e1f5fe", "#fff9c4", "#e0f2f1", "#ffebee", "#ede7f6",
-]
+def chunks_to_md(chunks: list[str]) -> str:
+    """Format a list of chunks as a fenced code block with index and token count."""
+    lines = []
+    for i, c in enumerate(chunks):
+        tok = token_count(c)
+        preview = c.replace("\n", "\\n")
+        lines.append(f"[{i}] ({tok} tok) {preview}")
+    return "```\n" + "\n".join(lines) + "\n```"
 
 
-def find_chunk_spans(text: str, chunks: list[str]) -> list[tuple[int, int]]:
-    """Find (start, end) character offsets for each chunk in the original text."""
-    spans = []
-    search_from = 0
-    for chunk in chunks:
-        idx = text.find(chunk, search_from)
-        if idx == -1:
-            stripped = chunk.strip()
-            idx = text.find(stripped, search_from)
-            if idx == -1:
-                continue
-            spans.append((idx, idx + len(stripped)))
-            search_from = idx + len(stripped)
-        else:
-            spans.append((idx, idx + len(chunk)))
-            search_from = idx + len(chunk)
-    return spans
-
-
-def render_highlighted_text(text: str, spans: list[tuple[int, int]], chunks: list[str]) -> str:
-    """Render text as HTML with chunk regions color-coded and labeled."""
-    parts = []
-    last_end = 0
-
-    for i, (start, end) in enumerate(spans):
-        color = COLORS[i % len(COLORS)]
-        tok = token_count(chunks[i]) if i < len(chunks) else "?"
-
-        if start > last_end:
-            gap = html.escape(text[last_end:start])
-            parts.append(f'<span class="gap">{gap}</span>')
-
-        chunk_text = html.escape(text[start:end])
-        parts.append(
-            f'<span class="chunk" style="background:{color};">'
-            f'<span class="chunk-label">chunk {i} ({tok} tok)</span>'
-            f'{chunk_text}</span>'
-        )
-        last_end = end
-
-    if last_end < len(text):
-        gap = html.escape(text[last_end:])
-        parts.append(f'<span class="gap">{gap}</span>')
-
-    return "".join(parts)
-
-
-def build_metrics_html(scores: dict) -> str:
-    return (
-        f"<b>{scores['n']}</b> chunks &nbsp;|&nbsp; "
-        f"avg <b>{scores['avg_tok']}</b> tok &nbsp;|&nbsp; "
-        f"util <b>{scores['util']}%</b> &nbsp;|&nbsp; "
-        f"sentence ends <b>{scores['sent_boundary']}%</b>"
-    )
-
-
-def run_html():
+def run_markdown():
     sections = []
+    summary = []
     wins = {"semchunk": 0, "langchain": 0, "tie": 0}
 
     for doc_name, text in DOCUMENTS.items():
@@ -288,163 +235,86 @@ def run_html():
         sc_chunks = sc_chunker(text)
         lc_chunks = lc_chunker.split_text(text)
 
-        sc_spans = find_chunk_spans(text, sc_chunks)
-        lc_spans = find_chunk_spans(text, lc_chunks)
-
-        sc_html = render_highlighted_text(text, sc_spans, sc_chunks)
-        lc_html = render_highlighted_text(text, lc_spans, lc_chunks)
-
         sc_scores = compute_scores(sc_chunks)
         lc_scores = compute_scores(lc_chunks)
-        sc_metrics = build_metrics_html(sc_scores)
-        lc_metrics = build_metrics_html(lc_scores)
-
         winner, emoji, reasons = judge(sc_scores, lc_scores)
         wins[winner] += 1
 
-        if winner == "semchunk":
-            banner_class = "winner-sc"
-            banner_text = f"{emoji} semchunk wins"
-            sc_col_class = "col col-winner"
-            lc_col_class = "col"
-        elif winner == "langchain":
-            banner_class = "winner-lc"
-            banner_text = f"{emoji} LangChain wins"
-            sc_col_class = "col"
-            lc_col_class = "col col-winner"
-        else:
-            banner_class = "winner-tie"
-            banner_text = f"{emoji} Tie"
-            sc_col_class = "col"
-            lc_col_class = "col"
+        winner_label = {"semchunk": "semchunk wins", "langchain": "LangChain wins", "tie": "Tie"}[winner]
+        reasons_str = " · ".join(reasons) if reasons else "identical output"
 
-        reasons_html = " &bull; ".join(html.escape(r) for r in reasons) if reasons else "identical output"
+        metrics_rows = [
+            ["chunks",           sc_scores["n"],            lc_scores["n"]],
+            ["avg tokens",       sc_scores["avg_tok"],      lc_scores["avg_tok"]],
+            ["utilization %",    sc_scores["util"],         lc_scores["util"]],
+            ["tiny chunks",      sc_scores["tiny"],         lc_scores["tiny"]],
+            ["starts lowercase", sc_scores["starts_lower"], lc_scores["starts_lower"]],
+            ["sentence end %",   sc_scores["sent_boundary"],lc_scores["sent_boundary"]],
+        ]
+        metrics_table = tabulate(
+            metrics_rows, headers=["Metric", "semchunk", "LangChain"], tablefmt="github"
+        )
 
-        sections.append(f"""
-        <div class="doc-section">
-            <div class="doc-header">
-                <h2>{html.escape(doc_name)} <span class="doc-tokens">({doc_tok} tokens)</span></h2>
-                <div class="banner {banner_class}">{banner_text}</div>
-            </div>
-            <div class="reasons">{reasons_html}</div>
-            <div class="columns">
-                <div class="{sc_col_class}">
-                    <h3>semchunk</h3>
-                    <div class="metrics">{sc_metrics}</div>
-                    <pre class="text-display">{sc_html}</pre>
-                </div>
-                <div class="{lc_col_class}">
-                    <h3>LangChain RecursiveCharacterTextSplitter</h3>
-                    <div class="metrics">{lc_metrics}</div>
-                    <pre class="text-display">{lc_html}</pre>
-                </div>
-            </div>
-        </div>""")
+        sections.append(
+            f"## {doc_name} ({doc_tok} tokens)\n\n"
+            f"{emoji} **{winner_label}** — {reasons_str}\n\n"
+            f"{metrics_table}\n\n"
+            f"<details>\n<summary>semchunk chunks ({sc_scores['n']})</summary>\n\n"
+            f"{chunks_to_md(sc_chunks)}\n\n"
+            f"</details>\n\n"
+            f"<details>\n<summary>LangChain chunks ({lc_scores['n']})</summary>\n\n"
+            f"{chunks_to_md(lc_chunks)}\n\n"
+            f"</details>\n"
+        )
 
+        summary.append({
+            "doc": doc_name, "tokens": doc_tok,
+            "sc_util": sc_scores["util"], "lc_util": lc_scores["util"],
+            "sc_sent": sc_scores["sent_boundary"], "lc_sent": lc_scores["sent_boundary"],
+            "sc_lower": sc_scores["starts_lower"], "lc_lower": lc_scores["starts_lower"],
+            "winner": winner,
+        })
+
+    # Overall winner
     if wins["semchunk"] > wins["langchain"]:
-        overall_class = "overall-sc"
-        overall = f'🏆 Overall winner: <span class="ow-name">semchunk</span> &mdash; won {wins["semchunk"]} of {len(DOCUMENTS)} documents'
+        overall = f'🏆 **Overall winner: semchunk** — won {wins["semchunk"]} of {len(DOCUMENTS)} documents'
     elif wins["langchain"] > wins["semchunk"]:
-        overall_class = "overall-lc"
-        overall = f'🏆 Overall winner: <span class="ow-name">LangChain</span> &mdash; won {wins["langchain"]} of {len(DOCUMENTS)} documents'
+        overall = f'🏆 **Overall winner: LangChain** — won {wins["langchain"]} of {len(DOCUMENTS)} documents'
     else:
-        overall_class = "overall-tie"
-        overall = f'🤝 Overall: <span class="ow-name">Tie</span> &mdash; {wins["semchunk"]} wins each, {wins["tie"]} ties'
+        overall = f'🤝 **Overall: Tie** — {wins["semchunk"]} wins each, {wins["tie"]} ties'
 
-    scoreboard = (
-        f'<span class="sb-item sb-sc">semchunk {wins["semchunk"]}</span>'
-        f'<span class="sb-item sb-lc">LangChain {wins["langchain"]}</span>'
-        f'<span class="sb-item sb-tie">Ties {wins["tie"]}</span>'
+    n = len(summary)
+
+    def avg(key):
+        return round(sum(r[key] for r in summary) / n, 1)
+
+    summary_rows = [
+        [r["doc"], r["tokens"], r["sc_util"], r["lc_util"],
+         r["sc_sent"], r["lc_sent"], r["sc_lower"], r["lc_lower"],
+         "✅ semchunk" if r["winner"] == "semchunk" else ("✅ LangChain" if r["winner"] == "langchain" else "🤝 tie")]
+        for r in summary
+    ]
+    summary_table = tabulate(
+        summary_rows,
+        headers=["Document", "Tokens", "SC Util%", "LC Util%", "SC Sent%", "LC Sent%", "SC Lower", "LC Lower", "Winner"],
+        tablefmt="github",
     )
 
-    page = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Chunking Comparison: semchunk vs LangChain</title>
-<style>
-    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-           background: #1a1a2e; color: #e0e0e0; padding: 2rem; }}
-    h1 {{ text-align: center; margin-bottom: 0.5rem; color: #fff; font-size: 1.8rem; }}
-    .subtitle {{ text-align: center; color: #888; margin-bottom: 1.5rem; font-size: 0.95rem; }}
+    page = (
+        f"# Chunking Comparison: semchunk vs LangChain\n\n"
+        f"chunk\\_size = {CHUNK_SIZE} tokens | tokenizer = {ENCODING_NAME} | {len(DOCUMENTS)} documents\n\n"
+        f"{overall}\n\n"
+        f"| | semchunk | LangChain |\n"
+        f"|---|---|---|\n"
+        f"| Avg utilization | {avg('sc_util')}% | {avg('lc_util')}% |\n"
+        f"| Avg sentence end % | {avg('sc_sent')}% | {avg('lc_sent')}% |\n"
+        f"| Total lowercase starts | {sum(r['sc_lower'] for r in summary)} | {sum(r['lc_lower'] for r in summary)} |\n\n"
+        f"{summary_table}\n\n"
+        f"---\n\n"
+        + "\n---\n\n".join(sections)
+    )
 
-    .overall-banner {{ text-align: center; font-size: 1.3rem; font-weight: 700;
-                       padding: 1rem 1.5rem; border-radius: 10px; margin-bottom: 1rem; }}
-    .overall-sc  {{ background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
-                    border: 2px solid #4caf50; color: #e8f5e9; }}
-    .overall-lc  {{ background: linear-gradient(135deg, #e65100 0%, #ef6c00 100%);
-                    border: 2px solid #ff9800; color: #fff3e0; }}
-    .overall-tie {{ background: linear-gradient(135deg, #37474f 0%, #546e7a 100%);
-                    border: 2px solid #78909c; color: #eceff1; }}
-    .ow-name {{ font-size: 1.5rem; }}
-
-    .scoreboard {{ text-align: center; margin-bottom: 2rem; }}
-    .sb-item {{ display: inline-block; padding: 0.35rem 1rem; border-radius: 6px;
-                font-weight: 600; font-size: 0.9rem; margin: 0 0.4rem; }}
-    .sb-sc  {{ background: #1b5e20; color: #a5d6a7; }}
-    .sb-lc  {{ background: #e65100; color: #ffcc80; }}
-    .sb-tie {{ background: #37474f; color: #b0bec5; }}
-
-    .doc-section {{ margin-bottom: 3rem; border: 1px solid #333; border-radius: 8px;
-                    padding: 1.5rem; background: #16213e; }}
-    .doc-header {{ display: flex; justify-content: space-between; align-items: center;
-                   margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; }}
-    .doc-header h2 {{ color: #e0e0e0; font-size: 1.3rem; margin: 0; }}
-    .doc-tokens {{ color: #888; font-weight: normal; font-size: 0.9rem; }}
-
-    .banner {{ padding: 0.3rem 1rem; border-radius: 6px; font-weight: 700;
-               font-size: 0.85rem; white-space: nowrap; }}
-    .winner-sc  {{ background: #1b5e20; color: #a5d6a7; border: 1px solid #4caf50; }}
-    .winner-lc  {{ background: #e65100; color: #ffcc80; border: 1px solid #ff9800; }}
-    .winner-tie {{ background: #37474f; color: #b0bec5; border: 1px solid #78909c; }}
-
-    .reasons {{ font-size: 0.8rem; color: #999; margin-bottom: 1rem; padding-left: 0.2rem; }}
-
-    .columns {{ display: flex; gap: 1.5rem; }}
-    .col {{ flex: 1; min-width: 0; border: 2px solid transparent; border-radius: 8px;
-            padding: 0.75rem; }}
-    .col-winner {{ border-color: #4caf50; background: rgba(76,175,80,0.05); }}
-    .col h3 {{ color: #ccc; margin-bottom: 0.5rem; font-size: 1rem;
-               padding-bottom: 0.3rem; border-bottom: 1px solid #333; }}
-    .col-winner h3 {{ color: #a5d6a7; border-bottom-color: #4caf50; }}
-
-    .metrics {{ font-size: 0.8rem; color: #aaa; margin-bottom: 0.5rem; padding: 0.4rem 0; }}
-    .metrics b {{ color: #e0e0e0; }}
-    .text-display {{ white-space: pre-wrap; word-wrap: break-word; font-family: 'SF Mono',
-                     'Fira Code', 'Consolas', monospace; font-size: 0.78rem; line-height: 1.5;
-                     background: #0f0f23; padding: 1rem; border-radius: 6px;
-                     max-height: 600px; overflow-y: auto; border: 1px solid #2a2a4a; }}
-    .chunk {{ position: relative; border-radius: 3px; color: #1a1a1a; }}
-    .chunk-label {{ position: relative; display: inline-block; font-size: 0.65rem;
-                    font-weight: 700; color: #fff; background: #e53935; padding: 1px 5px;
-                    border-radius: 3px; margin-right: 2px; vertical-align: top;
-                    line-height: 1.4; }}
-    .gap {{ color: #ef5350; background: rgba(239,83,80,0.15); border-radius: 2px; }}
-
-    .legend {{ text-align: center; margin-bottom: 2rem; font-size: 0.85rem; color: #999; }}
-    .legend span {{ display: inline-block; margin: 0 1rem; }}
-    .legend .swatch {{ display: inline-block; width: 14px; height: 14px; border-radius: 3px;
-                       vertical-align: middle; margin-right: 4px; }}
-</style>
-</head>
-<body>
-<h1>Chunking Comparison: semchunk vs LangChain</h1>
-<p class="subtitle">chunk_size = {CHUNK_SIZE} tokens &nbsp;|&nbsp; tokenizer = {ENCODING_NAME} &nbsp;|&nbsp; {len(DOCUMENTS)} documents</p>
-
-<div class="overall-banner {overall_class}">{overall}</div>
-<div class="scoreboard">{scoreboard}</div>
-
-<div class="legend">
-    <span><span class="swatch" style="background:#e3f2fd;"></span> Each color = one chunk</span>
-    <span><span class="swatch" style="background:rgba(239,83,80,0.15);border:1px solid #ef5350;"></span> Red = text between chunks (trimmed whitespace)</span>
-    <span>Red labels show chunk index and token count</span>
-</div>
-{"".join(sections)}
-</body>
-</html>"""
-
-    output = Path("reports") / "comparison_report.html"
+    output = Path("reports") / "comparison_report.md"
     output.parent.mkdir(exist_ok=True)
     output.write_text(page, encoding="utf-8")
 
@@ -459,13 +329,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compare semchunk vs LangChain chunking.")
     parser.add_argument(
         "--format",
-        choices=["html", "console"],
-        default="html",
-        help="Output format: html (default) or console",
+        choices=["markdown", "console"],
+        default="markdown",
+        help="Output format: markdown (default) or console",
     )
     args = parser.parse_args()
 
     if args.format == "console":
         run_console()
     else:
-        run_html()
+        run_markdown()
